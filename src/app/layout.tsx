@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { SupabaseProvider } from '@/providers/SupabaseProvider';
+import { AuthProvider } from '@/providers/AuthProvider';
 import '@/app/globals.css';
 
 export const metadata: Metadata = {
@@ -13,7 +14,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-screen bg-slate-950 text-slate-100">
         <SupabaseProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <AuthProvider>
+            <QueryProvider>{children}</QueryProvider>
+          </AuthProvider>
         </SupabaseProvider>
       </body>
     </html>

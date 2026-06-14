@@ -1,9 +1,2 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-export function middleware(request: NextRequest) {
-  return NextResponse.next();
-}
-
-export const config = {
-  matcher: ['/app/:path*', '/auth/:path*', '/admin/:path*', '/super-admin/:path*'],
-};
+// Active middleware is located at src/middleware.ts at the root of the src directory.
+export {};
