@@ -26,13 +26,15 @@ export default function PaymentsPage() {
     if (!profile?.id) return;
     setLoading(true);
 
-    const { data: adminData } = await supabaseBrowserClient
+    const { data: adminData } = (await supabaseBrowserClient
       .from('agency_admins')
       .select('agency_id')
       .eq('user_id', profile.id)
-      .single();
+      .single()) as { data: { agency_id?: string } | null };
 
-    if (adminData?.agency_id) {
+    const agencyId = (adminData as { agency_id?: string } | null)?.agency_id;
+
+    if (agencyId) {
       const { data, error } = await supabaseBrowserClient
         .from('payments')
         .select(`
@@ -55,7 +57,10 @@ export default function PaymentsPage() {
           .from('profiles')
           .select('id, full_name, email')
           .in('id', payerIds);
-        const profileMap = new Map(profilesData?.map(p => [p.id, p]) ?? []);
+
+        // Normalize typing for Supabase response
+        const profilesList = (profilesData ?? []) as { id: string; full_name: string | null; email: string }[];
+        const profileMap = new Map(profilesList.map(p => [p.id, p]));
 
         // Fetch requests for filtering
         const reqIds = data.map((p: any) => p.request_id).filter(Boolean);
@@ -64,7 +69,8 @@ export default function PaymentsPage() {
           .select('id, request_number, agency_id')
           .in('id', reqIds);
         
-        const requestMap = new Map(requestsData?.map(r => [r.id, r]) ?? []);
+        const requestsList = (requestsData ?? []) as { id: string; request_number?: string | null; agency_id?: string | null }[];
+        const requestMap = new Map(requestsList.map(r => [r.id, r]));
 
         // Filter and enrich payments related to this agency
         const enriched = data
@@ -73,7 +79,7 @@ export default function PaymentsPage() {
             profiles: profileMap.get(p.payer_id) ?? null,
             requests: requestMap.get(p.request_id) ?? null
           }))
-          .filter((p: any) => p.requests?.agency_id === adminData.agency_id);
+          .filter((p: any) => p.requests?.agency_id === agencyId);
 
         setPayments(enriched);
       }

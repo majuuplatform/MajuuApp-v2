@@ -24,14 +24,16 @@ export default function RequestsPage() {
     if (!profile?.id) return;
     setLoading(true);
 
-    const { data: adminData } = await supabaseBrowserClient
+    const { data: adminData } = (await supabaseBrowserClient
       .from('agency_admins')
       .select('agency_id')
       .eq('user_id', profile.id)
-      .single();
+      .single()) as { data: { agency_id?: string } | null };
 
-    if (adminData?.agency_id) {
-      setAgencyId(adminData.agency_id);
+    const agencyIdFound = (adminData as { agency_id?: string } | null)?.agency_id;
+
+    if (agencyIdFound) {
+      setAgencyId(agencyIdFound);
 
       const { data: reqs, error } = await supabaseBrowserClient
         .from('requests')
@@ -42,18 +44,30 @@ export default function RequestsPage() {
           created_at,
           user_id
         `)
-        .eq('agency_id', adminData.agency_id)
+        .eq('agency_id', agencyIdFound)
         .order('created_at', { ascending: false });
 
       if (!error && reqs) {
+        // Ensure we have a typed array for requests to avoid `never` typings
+        type RequestRow = {
+          id: string;
+          request_number: string | null;
+          status: 'NEW' | 'IN_PROGRESS' | 'DONE';
+          created_at: string;
+          user_id?: string | null;
+        };
+
+        const reqList = (reqs ?? []) as RequestRow[];
+
         // Fetch profiles and services manually to prevent complex nested join limitations on standard configurations
-        const userIds = reqs.map((r: any) => r.user_id).filter(Boolean);
+        const userIds = reqList.map(r => r.user_id).filter(Boolean) as string[];
         const { data: profilesData } = await supabaseBrowserClient
           .from('profiles')
           .select('id, full_name, email')
           .in('id', userIds);
         
-        const profileMap = new Map(profilesData?.map(p => [p.id, p]) ?? []);
+        const profilesList = (profilesData ?? []) as { id: string; full_name: string | null; email: string }[];
+        const profileMap = new Map(profilesList.map(p => [p.id, p]));
 
         // Also get request services if mapped
         const { data: reqServices } = await supabaseBrowserClient
@@ -66,18 +80,18 @@ export default function RequestsPage() {
               )
             )
           `)
-          .in('request_id', reqs.map(r => r.id));
+          .in('request_id', reqList.map(r => r.id));
 
-        const serviceMap = new Map();
+        const serviceMap = new Map<string, string>();
         reqServices?.forEach((rs: any) => {
           const title = rs.agency_services?.services?.title;
           if (title) serviceMap.set(rs.request_id, title);
         });
 
-        const enrichedRequests = reqs.map((r: any) => ({
+        const enrichedRequests = reqList.map((r) => ({
           ...r,
-          profiles: profileMap.get(r.user_id) ?? null,
-          services: serviceMap.has(r.id) ? { title: serviceMap.get(r.id) } : { title: 'General Service' }
+          profiles: profileMap.get(r.user_id ?? '') ?? null,
+          services: serviceMap.has(r.id) ? { title: serviceMap.get(r.id)! } : { title: 'General Service' }
         }));
 
         setRequests(enrichedRequests);
@@ -91,8 +105,9 @@ export default function RequestsPage() {
   }, [profile]);
 
   const handleStatusChange = async (id: string, newStatus: 'NEW' | 'IN_PROGRESS' | 'DONE') => {
-    const { error } = await supabaseBrowserClient
-      .from('requests')
+    // Cast the query builder to `any` to bypass temporary typing issues
+    // (replace with proper DB typings later in `src/types/database.types.ts`).
+    const { error } = await (supabaseBrowserClient.from('requests') as any)
       .update({ status: newStatus })
       .eq('id', id);
 

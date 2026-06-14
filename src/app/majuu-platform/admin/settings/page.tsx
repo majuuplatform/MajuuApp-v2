@@ -91,7 +91,9 @@ export default function SettingsPage() {
         .from('agencies')
         .select('id, name');
 
-      const agencyMap = new Map(agencyData?.map(a => [a.id, a.name]) ?? []);
+      // Normalize typing for agency data returned by Supabase client
+      const agenciesList = (agencyData ?? []) as { id: string; name: string }[];
+      const agencyMap = new Map(agenciesList.map((a) => [a.id, a.name]));
       
       const enrichedWhitelist = whitelistData.map((entry: any) => ({
         ...entry,
@@ -122,7 +124,8 @@ export default function SettingsPage() {
       return;
     }
 
-    // @ts-ignore - Type mismatch due to Supabase SDK type inference for admin_whitelist
+    // Supabase client typing for admin_whitelist is narrow in generated types.
+    // Cast payload to `any` to avoid TypeScript build errors while keeping runtime behavior intact.
     const { error } = await supabaseBrowserClient
       .from('admin_whitelist')
       .insert({
@@ -131,7 +134,7 @@ export default function SettingsPage() {
         agency_id: role === 'AGENT_ADMIN' && agencyId ? agencyId : null,
         can_create_superadmin: role === 'SUPER_ADMIN' ? canCreateSuper : false,
         invited_by: profile?.id,
-      });
+      } as any);
 
     if (error) {
       setErrorMsg(error.message);
